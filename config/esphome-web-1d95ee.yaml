@@ -36,61 +36,109 @@ output:
     min_power: 0
     max_power: 0.77
 
+# Define the common filters for normalization
+# This anchor allows us to reuse the filter list
+.common_wind_filters: &wind_filters
+  # The scale is not entirely linear so use
+  # a calibration curve.
+  - calibrate_linear:
+      method: exact # linear interpolation mode
+      datapoints:
+      # Map from sensor value to output value
+        - 0.0 -> 0.0
+        - 4 -> 0.011
+        - 6 -> 0.043
+        - 8 -> 0.075
+        - 10 -> 0.106
+        - 12 -> 0.138
+        - 14 -> 0.180
+        - 16 -> 0.217
+        - 18 -> 0.264
+        - 20 -> 0.296
+        - 22 -> 0.343
+        - 24 -> 0.374
+        - 26 -> 0.422
+        - 28 -> 0.469
+        - 30 -> 0.500
+        - 32 -> 0.548
+        - 34 -> 0.595
+        - 36 -> 0.643
+        - 38 -> 0.690
+        - 40 -> 0.737
+        - 42 -> 0.785
+        - 44 -> 0.832
+        - 46 -> 0.879
+        - 48 -> 0.942
+        - 50 -> 1
+
+  # Clamp the value from 0 to 1
+  - lambda: |-
+      // Clamp the value to ensure it never exceeds 0.0 - 1.0 range
+      if (x > 1.0) return 1.0;
+      if (x < 0.0) return 0.0;
+      return x;
+
 sensor:
+
+
+  # Normalized Wind Gust Sensor (Internal)
   - platform: homeassistant
-    id: ha_wind_speed
+    id: ha_wind_gust_normalized
+    entity_id: sensor.pirateweather_wind_gust
+    internal: true
+    filters: *wind_filters # Apply the common filters
+
+  # Normalized Wind Speed Sensor (Internal)
+  - platform: homeassistant
+    id: ha_wind_speed_normalized
     #entity_id: sensor.pirateweather_wind_speed
     entity_id: input_number.test_fake_wind_speed
-    name: "PWM Wind Speed Control"
-    # internal: true # Set to true so this normalized value isn't sent BACK to HA
-    
-    # Process the value immediately using filters
-    filters:
-      # The scale is not entirely linear so use
-      # a calibration curve.
-      - calibrate_linear:
-          method: exact # linear interpolation mode
-          datapoints:
-          # Map from sensor value to output value
-            - 0.0 -> 0.0
-            - 4 -> 0.011
-            - 6 -> 0.043
-            - 8 -> 0.075
-            - 10 -> 0.106
-            - 12 -> 0.138
-            - 14 -> 0.180
-            - 16 -> 0.217
-            - 18 -> 0.264
-            - 20 -> 0.296
-            - 22 -> 0.343
-            - 24 -> 0.374
-            - 26 -> 0.422
-            - 28 -> 0.469
-            - 30 -> 0.500
-            - 32 -> 0.548
-            - 34 -> 0.595
-            - 36 -> 0.643
-            - 38 -> 0.690
-            - 40 -> 0.737
-            - 42 -> 0.785
-            - 44 -> 0.832
-            - 46 -> 0.879
-            - 48 -> 0.942
-            - 50 -> 1
-      
-      # Clamp the value from 0 to 1
-      - lambda: |-          
-          // Clamp the value to ensure it never exceeds 0.0 - 1.0 range
-          if (x > 1.0) return 1.0;
-          if (x < 0.0) return 0.0;
-          return x;
+    internal: true
+    filters: *wind_filters # Apply the common filters
 
-    # Update the PWM output whenever the normalized value changes
+  # --- New Oscillation Logic ---
+
+  # Add the uptime sensor to use for timing the oscillation
+  - platform: uptime
+    name: "Uptime Sensor"
+    id: uptime_sensor
+    internal: true
+    update_interval: 0.5s # Update frequently for smooth oscillation
+
+  # Template sensor to handle the oscillation and set the PWM
+  - platform: template
+    name: "Wind Speed Oscillator"
+    update_interval: 0.5s # Use the same interval as the uptime sensor
+    # We don't need a state, only the on_value trigger
+    
+    # Trigger the output level change whenever this template sensor updates
     on_value:
       then:
-        - output.set_level:
-            id: pwm_output
-            level: !lambda 'return x;'
-        - logger.log:
-            format: "Setting the PWM output to %.2f"
-            args: [ 'id(ha_wind_speed).state']
+        - lambda: |-
+            // Get the normalized wind speed and gust values
+            float speed_value = id(ha_wind_speed_normalized).state;
+            float gust_value = id(ha_wind_gust_normalized).state;
+
+            // Get the current uptime in seconds
+            int seconds = (int)id(uptime_sensor).state;
+
+            // Determine which value to output based on the seconds
+            // The value will alternate every 2 seconds (e.g., 2s speed, 2s gust, 2s speed...)
+            // You can adjust the cycle length (4 seconds in this case) and the duty cycle here.
+            
+            // Cycle length: 4 seconds (seconds % 4)
+            // If remainder is < 2 (seconds 0, 1), use wind speed
+            // If remainder is >= 2 (seconds 2, 3), use wind gust
+            if ((seconds % 4) < 2) {
+              output.set_level:
+                id: pwm_output
+                level: speed_value
+              // Optional: Log which value is being used
+              // id(logger).log("Oscillation: Setting SPEED (%.2f)", 0, speed_value);
+            } else {
+              output.set_level:
+                id: pwm_output
+                level: gust_value
+              // Optional: Log which value is being used
+              // id(logger).log("Oscillation: Setting GUST (%.2f)", 0, gust_value);
+            }
