@@ -1,0 +1,13 @@
+services:
+  esphome:
+    container_name: esphome
+    image: esphome/esphome
+    volumes:
+      - /Users/hlgirard/Projects/esphome-devices/config:/config
+      - /etc/localtime:/etc/localtime:ro
+    restart: "no"
+    privileged: true
+    ports:
+      - "6052:6052"
+    environment:
+      - ESPHOME_DASHBOARD_USE_PING=true
