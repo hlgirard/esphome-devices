@@ -132,8 +132,10 @@ interval:
           
           if ((seconds % 15) < 2) { // 0 and 1 (2 seconds)
             target_level = gust_value;
+            ESP_LOGD("main", "Using gust value: %.2f", gust_value);
           } else { // 2 through 14 (13 seconds)
             target_level = speed_value;
+            ESP_LOGD("main", "Using speed value: %.2f", speed_value);
           }
 
           // Set the output level
