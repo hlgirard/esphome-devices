@@ -30,11 +30,20 @@ wifi:
 
 output:
   - platform: esp8266_pwm
-    pin: GPIO5 # Pin D1
+    pin: D1 # Pin D1 / GPIO5
     frequency: 1000 Hz
     id: pwm_output
     min_power: 0
     max_power: 0.77
+
+light:
+  - platform: status_led
+    id: builtin_led
+    name: "Built-in LED"
+    restore_mode: RESTORE_DEFAULT_ON
+    pin:
+      number: D4
+      inverted: True
 
 # Define the common filters for normalization
 # This anchor allows us to reuse the filter list
@@ -130,12 +139,14 @@ interval:
           // Cycle length: 15 seconds (seconds % 15)
           float target_level;
           
-          if ((seconds % 15) < 2) { // 0 and 1 (2 seconds)
+          if ((seconds % 10) < 2) { // 0 and 1 (2 seconds)
             target_level = gust_value;
             ESP_LOGD("main", "Using gust value: %.2f", gust_value);
-          } else { // 2 through 14 (13 seconds)
+            id(builtin_led).turn_on().set_brightness(0.1).perform();
+          } else { // 2 through 9 (8 seconds)
             target_level = speed_value;
             ESP_LOGD("main", "Using speed value: %.2f", speed_value);
+            id(builtin_led).turn_off().perform();
           }
 
           // Set the output level
