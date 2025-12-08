@@ -46,6 +46,12 @@ light:
       number: D4
       inverted: True
 
+switch:
+  - platform: template
+    name: "LED Switch"
+    id: led_switch
+    optimistic: true
+
 # Define the common filters for normalization
 # This anchor allows us to reuse the filter list
 .common_wind_filters:
@@ -146,7 +152,9 @@ interval:
             ESP_LOGD("main", "Random factor: %.2f", random_factor_gust);
             target_level = gust_value * random_factor_gust;
             ESP_LOGD("main", "Using gust value: %.2f", target_level);
-            id(builtin_led).turn_on().perform();
+            if (id(led_switch).state) {
+              id(builtin_led).turn_on().perform();
+            }
           } else {
             // Introduce a random factor from 0.9 to 1.1
             // for the speed number
