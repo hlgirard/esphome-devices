@@ -40,6 +40,7 @@ light:
   - platform: status_led
     id: builtin_led
     name: "Built-in LED"
+    internal: true
     restore_mode: RESTORE_DEFAULT_ON
     pin:
       number: D4
@@ -136,16 +137,23 @@ interval:
           // Get the current uptime in seconds
           int seconds = (int)id(uptime_sensor).state;
 
-          // Cycle length: 15 seconds (seconds % 15)
           float target_level;
           
-          if ((seconds % 10) < 2) { // 0 and 1 (2 seconds)
-            target_level = gust_value;
-            ESP_LOGD("main", "Using gust value: %.2f", gust_value);
-            id(builtin_led).turn_on().set_brightness(0.1).perform();
-          } else { // 2 through 9 (8 seconds)
-            target_level = speed_value;
-            ESP_LOGD("main", "Using speed value: %.2f", speed_value);
+          if ((seconds % 12) < 4) {
+            // Introduce a random factor from 0.75 to 1 for
+            // the gust number
+            float random_factor_gust = ((double) rand() / RAND_MAX) * 0.25 + 0.75;
+            ESP_LOGD("main", "Random factor: %.2f", random_factor_gust);
+            target_level = gust_value * random_factor_gust;
+            ESP_LOGD("main", "Using gust value: %.2f", target_level);
+            id(builtin_led).turn_on().perform();
+          } else {
+            // Introduce a random factor from 0.9 to 1.1
+            // for the speed number
+            float random_factor_speed = ((double) rand() / RAND_MAX) * 0.2 + 0.9;
+            ESP_LOGD("main", "Random factor: %.2f", random_factor_speed);
+            target_level = speed_value * random_factor_speed;
+            ESP_LOGD("main", "Using speed value: %.2f", target_level);
             id(builtin_led).turn_off().perform();
           }
 
