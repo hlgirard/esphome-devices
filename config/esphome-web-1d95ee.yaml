@@ -28,6 +28,17 @@ wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
 
+# --- Globals for State Management ---
+globals:
+  - id: is_gust_mode
+    type: bool
+    restore_value: false
+    initial_value: 'false' # False = Wind Speed, True = Wind Gust
+  - id: last_transition_time
+    type: int
+    restore_value: false
+    initial_value: '0'
+
 output:
   - platform: esp8266_pwm
     pin: D1 # Pin D1 / GPIO5
@@ -56,12 +67,12 @@ switch:
 # This anchor allows us to reuse the filter list
 .common_wind_filters:
   calibration_curve: &calibration_curve
-  # The scale is not entirely linear so use
+    # The scale is not entirely linear so use
   # a calibration curve.
     calibrate_linear:
       method: exact # linear interpolation mode
       datapoints:
-      # Map from sensor value to output value
+            # Map from sensor value to output value
         - 0.0 -> 0.0
         - 4 -> 0.011
         - 6 -> 0.043
@@ -98,7 +109,6 @@ switch:
 
 sensor:
   # Normalized Wind Speed Sensor (Internal)
-  # Only reads and normalizes the HA entity. Does NOT control PWM directly.
   - platform: homeassistant
     id: ha_wind_speed_norm
     #entity_id: input_number.test_fake_wind_speed
@@ -109,7 +119,6 @@ sensor:
       - *clamp_logic
 
   # Normalized Wind Gust Sensor (Internal)
-  # Only reads and normalizes the HA entity. Does NOT control PWM directly.
   - platform: homeassistant
     id: ha_wind_gust_norm
     #entity_id: input_number.test_fake_wind_gust
@@ -119,20 +128,11 @@ sensor:
       - *calibration_curve
       - *clamp_logic
 
-  # --- Oscillation Logic Components ---
-
-  # Uptime sensor to use for timing the oscillation cycle
-  - platform: uptime
-    name: "Uptime Sensor"
-    id: uptime_sensor
-    internal: true
-    update_interval: 1s 
-
 interval:
-  - interval: 0.5s # Executes the lambda every 0.5 seconds
+  - interval: 0.5s
     then:
       - lambda: |-
-          // Get the normalized wind speed and gust values
+          // 1. Get current values
           float speed_value = id(ha_wind_speed_norm).state;
           float gust_value = id(ha_wind_gust_norm).state;
 
@@ -140,30 +140,65 @@ interval:
           if (std::isnan(speed_value)) speed_value = 0.0;
           if (std::isnan(gust_value)) gust_value = 0.0;
 
-          // Get the current uptime in seconds
-          int seconds = (int)id(uptime_sensor).state;
-
-          float target_level;
+          // 2. State Transition Logic
+          uint32_t now = millis();
+          uint32_t time_since = now - id(last_transition_time);
           
-          if ((seconds % 12) < 4) {
-            // Introduce a random factor from 0.75 to 1 for
-            // the gust number
+          // Only attempt transition if we passed the 2 second lock
+          if (time_since > 2000) {
+            float probability = 0.0;
+            
+            if (id(is_gust_mode)) {
+              // --- CURRENT: GUST -> GOING TO: SPEED ---
+              // Target: 5 seconds total.
+              // Lockout: 2s. Ramp window: 3s (5000ms - 2000ms).
+              if (time_since >= 5000) {
+                probability = 1.0;
+              } else {
+                probability = (time_since - 2000.0) / 3000.0;
+              }
+            } else {
+              // --- CURRENT: SPEED -> GOING TO: GUST ---
+              // Target: 10 seconds total.
+              // Lockout: 2s. Ramp window: 8s (10000ms - 2000ms).
+              if (time_since >= 10000) {
+                probability = 1.0;
+              } else {
+                probability = (time_since - 2000.0) / 8000.0;
+              }
+            }
+
+            // Roll the dice (0.0 to 1.0)
+            float roll = (float) rand() / RAND_MAX;
+            
+            if (roll < probability) {
+              // Switch state
+              id(is_gust_mode) = !id(is_gust_mode);
+              id(last_transition_time) = now;
+              ESP_LOGD("main", "Transitioned to %s. (Prob: %.2f, Time: %u ms)", 
+                id(is_gust_mode) ? "GUST" : "SPEED", probability, time_since);
+            }
+          }
+
+          // 3. Set Output based on global State
+          float target_level;
+
+          if (id(is_gust_mode)) {
+            // Gust Mode Logic
             float random_factor_gust = ((double) rand() / RAND_MAX) * 0.25 + 0.75;
-            ESP_LOGD("main", "Random factor: %.2f", random_factor_gust);
             target_level = gust_value * random_factor_gust;
-            ESP_LOGD("main", "Using gust value: %.2f", target_level);
+            
+            // LED ON indicates Gust
             if (id(led_switch).state) {
               id(builtin_led).turn_on().perform();
             }
           } else {
-            // Introduce a random factor from 0.9 to 1.1
-            // for the speed number
+            // Speed Mode Logic
             float random_factor_speed = ((double) rand() / RAND_MAX) * 0.2 + 0.9;
-            ESP_LOGD("main", "Random factor: %.2f", random_factor_speed);
             target_level = speed_value * random_factor_speed;
-            ESP_LOGD("main", "Using speed value: %.2f", target_level);
+            
+            // LED OFF indicates Speed
             id(builtin_led).turn_off().perform();
           }
 
-          // Set the output level
           id(pwm_output).set_level(target_level);
