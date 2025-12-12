@@ -152,16 +152,16 @@ interval:
               
               if (id(is_gust_mode)) {
                 // --- CURRENT: GUST -> GOING TO: SPEED ---
-                // Target: 5 seconds total. Lockout: 2s. Ramp: 3s.
-                if (time_since_transition >= 5000) {
+                // Target: 5 seconds total. Lockout: 2s. Ramp: 4s.
+                if (time_since_transition >= 6000) {
                   probability = 1.0;
                 } else {
                   probability = (time_since_transition - 2000.0) / 3000.0;
                 }
               } else {
                 // --- CURRENT: SPEED -> GOING TO: GUST ---
-                // Target: 10 seconds total. Lockout: 2s. Ramp: 8s.
-                if (time_since_transition >= 10000) {
+                // Target: 10 seconds total. Lockout: 2s. Ramp: 12s.
+                if (time_since_transition >= 14000) {
                   probability = 1.0;
                 } else {
                   probability = (time_since_transition - 2000.0) / 8000.0;
