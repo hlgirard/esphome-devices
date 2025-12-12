@@ -132,72 +132,78 @@ interval:
   - interval: 0.5s
     then:
       - lambda: |-
-          // 1. Get current values
-          float speed_value = id(ha_wind_speed_norm).state;
-          float gust_value = id(ha_wind_gust_norm).state;
-
-          // Handle potential NaN values (e.g., before first update)
-          if (std::isnan(speed_value)) speed_value = 0.0;
-          if (std::isnan(gust_value)) gust_value = 0.0;
-
-          // 2. State Transition Logic
+          // Define a static variable to track the last time we CHECKED for a transition.
+          // This persists between lambda calls.
+          static uint32_t last_check_time = 0;
           uint32_t now = millis();
-          uint32_t time_since = now - id(last_transition_time);
-          
-          // Only attempt transition if we passed the 2 second lock
-          if (time_since > 2000) {
-            float probability = 0.0;
-            
-            if (id(is_gust_mode)) {
-              // --- CURRENT: GUST -> GOING TO: SPEED ---
-              // Target: 5 seconds total.
-              // Lockout: 2s. Ramp window: 3s (5000ms - 2000ms).
-              if (time_since >= 5000) {
-                probability = 1.0;
-              } else {
-                probability = (time_since - 2000.0) / 3000.0;
-              }
-            } else {
-              // --- CURRENT: SPEED -> GOING TO: GUST ---
-              // Target: 10 seconds total.
-              // Lockout: 2s. Ramp window: 8s (10000ms - 2000ms).
-              if (time_since >= 10000) {
-                probability = 1.0;
-              } else {
-                probability = (time_since - 2000.0) / 8000.0;
-              }
-            }
 
-            // Roll the dice (0.0 to 1.0)
-            float roll = (float) rand() / RAND_MAX;
+          // =========================================================
+          // 1. STATE TRANSITION LOGIC (Runs only every 1000ms/1s)
+          // =========================================================
+          if (now - last_check_time >= 1000) {
+            last_check_time = now;
             
-            if (roll < probability) {
-              // Switch state
-              id(is_gust_mode) = !id(is_gust_mode);
-              id(last_transition_time) = now;
-              ESP_LOGD("main", "Transitioned to %s. (Prob: %.2f, Time: %u ms)", 
-                id(is_gust_mode) ? "GUST" : "SPEED", probability, time_since);
+            // Calculate time since the state LAST CHANGED
+            uint32_t time_since_transition = now - id(last_transition_time);
+            
+            // Only attempt transition if we passed the 2 second lock
+            if (time_since_transition > 2000) {
+              float probability = 0.0;
+              
+              if (id(is_gust_mode)) {
+                // --- CURRENT: GUST -> GOING TO: SPEED ---
+                // Target: 5 seconds total. Lockout: 2s. Ramp: 3s.
+                if (time_since_transition >= 5000) {
+                  probability = 1.0;
+                } else {
+                  probability = (time_since_transition - 2000.0) / 3000.0;
+                }
+              } else {
+                // --- CURRENT: SPEED -> GOING TO: GUST ---
+                // Target: 10 seconds total. Lockout: 2s. Ramp: 8s.
+                if (time_since_transition >= 10000) {
+                  probability = 1.0;
+                } else {
+                  probability = (time_since_transition - 2000.0) / 8000.0;
+                }
+              }
+
+              // Roll the dice
+              float roll = (float)rand() / RAND_MAX;
+              
+              if (roll < probability) {
+                id(is_gust_mode) = !id(is_gust_mode);
+                id(last_transition_time) = now;
+                ESP_LOGD("main", "Transitioned to %s. (Prob: %.2f, Time: %u ms)", 
+                  id(is_gust_mode) ? "GUST" : "SPEED", probability, time_since_transition);
+              }
             }
           }
 
-          // 3. Set Output based on global State
+          // =========================================================
+          // 2. PWM & JITTER LOGIC (Runs every 0.5s)
+          // =========================================================
+          
+          float speed_value = id(ha_wind_speed_norm).state;
+          float gust_value = id(ha_wind_gust_norm).state;
+          if (std::isnan(speed_value)) speed_value = 0.0;
+          if (std::isnan(gust_value)) gust_value = 0.0;
+
           float target_level;
 
           if (id(is_gust_mode)) {
-            // Gust Mode Logic
+            // Gust Mode Jitter (0.75 - 1.0)
             float random_factor_gust = ((double) rand() / RAND_MAX) * 0.25 + 0.75;
             target_level = gust_value * random_factor_gust;
             
-            // LED ON indicates Gust
             if (id(led_switch).state) {
               id(builtin_led).turn_on().perform();
             }
           } else {
-            // Speed Mode Logic
+            // Speed Mode Jitter (0.9 - 1.1)
             float random_factor_speed = ((double) rand() / RAND_MAX) * 0.2 + 0.9;
             target_level = speed_value * random_factor_speed;
             
-            // LED OFF indicates Speed
             id(builtin_led).turn_off().perform();
           }
 
