@@ -265,7 +265,7 @@ interval:
             id(red_led).turn_on().perform();
           } else if (id(ha_daytime_high_temp) <= 0) {
             // Blink Red every second
-            if (millis() / 1000 % 2 == 1) {
+            if ((millis() / 1000) % 2 == 1) {
               id(red_led).turn_on().perform();
             } else {
               id(red_led).turn_off().perform();
@@ -279,7 +279,7 @@ interval:
           }
           else if (id(ha_precipitation_prob) >= 15) {
             // Blink blue LED
-            if (millis() / 1000 % 2 == 1) {
+            if ((millis() / 1000) % 2 == 1) {
               id(blue_led).turn_on().perform();
             } else {
               id(blue_led).turn_off().perform();
