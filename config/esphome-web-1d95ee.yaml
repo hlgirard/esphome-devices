@@ -39,15 +39,9 @@ globals:
     restore_value: false
     initial_value: '0'
 
-output:
-  - platform: esp8266_pwm
-    pin: D1 # Pin D1 / GPIO5
-    frequency: 1000 Hz
-    id: pwm_output
-    min_power: 0
-    max_power: 0.77
 
 light:
+  # Built-in LED showing status
   - platform: status_led
     id: builtin_led
     name: "Built-in LED"
@@ -56,7 +50,39 @@ light:
     pin:
       number: D4
       inverted: True
+  # Blue LED for weather beacon
+  - platform: monochromatic
+    id: red_led
+    output: pwm_blue_led
+    internal: true
+  # Red LED for weather beacon
+  - platform: monochromatic
+    id: blue_led
+    output: pwm_red_led
+    internal: true
 
+
+output:
+  # PWM output to drive the wind indicator
+  - platform: esp8266_pwm
+    pin: D1 # Pin D1 / GPIO5
+    frequency: 1000 Hz
+    id: pwm_output
+    min_power: 0
+    max_power: 0.77
+  # PWM for blue LED
+  - platform: esp8266_pwm
+    pin: D2
+    frequency: 1000 Hz
+    id: pwm_blue_led
+  # PWM for red LED
+  - platform: esp8266_pwm
+    pin: D3
+    frequency: 1000 Hz
+    id: pwm_red_led
+
+# Switch exposed to HA to turn the
+# built-in led on when gust speed is shown
 switch:
   - platform: template
     name: "LED Switch"
@@ -127,6 +153,18 @@ sensor:
     filters:
       - *calibration_curve
       - *clamp_logic
+
+  # Daytime max temp today
+  - platform: homeassistant
+    id: ha_daytime_high_temp
+    entity_id: sensor.pirateweather_daytime_high_apparent_temperature_0d
+    internal: true
+
+  # Precipitation probability today
+  - platform: homeassistant
+    id: ha_precipitation_prob
+    entity_id: sensor.pirateweather_precip_probability_0d
+    internal: true
 
 interval:
   - interval: 0.5s
@@ -208,3 +246,45 @@ interval:
           }
 
           id(pwm_output).set_level(target_level);
+
+          // =========================================================
+          // 3. Weather LEDs
+          // Rules:
+          // - If HighTemp > 10ºC and no precip -> Blue solid
+          // - If 0 < HighTemp < 10ºC -> Red solid
+          // - If HighTemp < 0ºC -> Blink red
+          // - If precipitation prob > 15% -> Blink Blue
+          // =========================================================
+
+          // Red LED control
+          if (id(ha_daytime_high_temp) >= 10) {
+            // Red off
+            id(red_led).turn_off().perform();
+          } else if (id(ha_daytime_high_temp) < 10 && id(ha_daytime_high_temp) > 0) {
+            // Solid Red ON
+            id(red_led).turn_on().perform();
+          } else if (id(ha_daytime_high_temp) <= 0) {
+            // Blink Red every second
+            if (millis() / 1000 % 2 == 1) {
+              id(red_led).turn_on().perform();
+            } else {
+              id(red_led).turn_off().perform();
+            }
+          }
+
+          // Blue LED Control
+          if (id(ha_daytime_high_temp) >= 10 && id(ha_precipitation_prob) < 15) {
+            // Solid Blue ON
+            id(blue_led).turn_on().perform();
+          }
+          else if (id(ha_precipitation_prob) >= 15) {
+            // Blink blue LED
+            if (millis() / 1000 % 2 == 1) {
+              id(blue_led).turn_on().perform();
+            } else {
+              id(blue_led).turn_off().perform();
+            }
+          } else {
+            // Blue off
+            id(blue_led).turn_off().perform();
+          }
