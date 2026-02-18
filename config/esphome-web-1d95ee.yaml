@@ -50,15 +50,15 @@ light:
     pin:
       number: D4
       inverted: True
-  # Blue LED for weather beacon
-  - platform: monochromatic
-    id: red_led
-    output: pwm_blue_led
-    internal: true
   # Red LED for weather beacon
   - platform: monochromatic
-    id: blue_led
+    id: red_led
     output: pwm_red_led
+    internal: true
+  # Blue LED for weather beacon
+  - platform: monochromatic
+    id: blue_led
+    output: pwm_blue_led
     internal: true
 
 
@@ -72,12 +72,12 @@ output:
     max_power: 0.77
   # PWM for blue LED
   - platform: esp8266_pwm
-    pin: D2
+    pin: D7
     frequency: 1000 Hz
     id: pwm_blue_led
   # PWM for red LED
   - platform: esp8266_pwm
-    pin: D3
+    pin: D8
     frequency: 1000 Hz
     id: pwm_red_led
 
@@ -256,15 +256,23 @@ interval:
           // - If precipitation prob > 15% -> Blink Blue
           // =========================================================
 
+          float high_temp = id(ha_daytime_high_temp).state;
+          float precipitation_prob = id(ha_precipitation_prob).state;
+          if (std::isnan(high_temp)) high_temp = 0.0;
+          if (std::isnan(precipitation_prob)) precipitation_prob = 0.0;
+
           // Red LED control
-          if (id(ha_daytime_high_temp) >= 10) {
+          if (high_temp >= 10) {
             // Red off
             id(red_led).turn_off().perform();
-          } else if (id(ha_daytime_high_temp) < 10 && id(ha_daytime_high_temp) > 0) {
+            ESP_LOGD("main", "Red OFF");
+          } else if (high_temp < 10 && high_temp > 0) {
             // Solid Red ON
             id(red_led).turn_on().perform();
-          } else if (id(ha_daytime_high_temp) <= 0) {
+            ESP_LOGD("main", "Red ON");
+          } else if (high_temp <= 0) {
             // Blink Red every second
+            ESP_LOGD("main", "Red BLINK");
             if ((millis() / 1000) % 2 == 1) {
               id(red_led).turn_on().perform();
             } else {
@@ -273,18 +281,21 @@ interval:
           }
 
           // Blue LED Control
-          if (id(ha_daytime_high_temp) >= 10 && id(ha_precipitation_prob) < 15) {
+          if (high_temp >= 10 && precipitation_prob < 15) {
             // Solid Blue ON
             id(blue_led).turn_on().perform();
+            ESP_LOGD("main", "Blue ON");
           }
-          else if (id(ha_precipitation_prob) >= 15) {
+          else if (precipitation_prob >= 15) {
             // Blink blue LED
             if ((millis() / 1000) % 2 == 1) {
               id(blue_led).turn_on().perform();
             } else {
               id(blue_led).turn_off().perform();
             }
+            ESP_LOGD("main", "Blue BLINK");
           } else {
             // Blue off
             id(blue_led).turn_off().perform();
+            ESP_LOGD("main", "Blue OFF");
           }
