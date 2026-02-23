@@ -55,11 +55,13 @@ light:
     id: red_led
     output: pwm_red_led
     internal: true
+    default_transition_length: 500ms
   # Blue LED for weather beacon
   - platform: monochromatic
     id: blue_led
     output: pwm_blue_led
     internal: true
+    default_transition_length: 500ms
 
 
 output:
