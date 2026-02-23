@@ -87,7 +87,7 @@ output:
 # built-in led on when gust speed is shown
 switch:
   - platform: template
-    name: "LED Switch"
+    name: "Status LED"
     id: led_switch
     optimistic: true
   - platform: template
