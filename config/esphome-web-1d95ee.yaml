@@ -55,11 +55,13 @@ light:
     id: red_led
     output: pwm_red_led
     internal: true
+    default_transition_length: 500ms
   # Blue LED for weather beacon
   - platform: monochromatic
     id: blue_led
     output: pwm_blue_led
     internal: true
+    default_transition_length: 500ms
 
 
 output:
@@ -85,9 +87,37 @@ output:
 # built-in led on when gust speed is shown
 switch:
   - platform: template
-    name: "LED Switch"
+    name: "Status LED"
     id: led_switch
     optimistic: true
+  - platform: template
+    name: "Weather LEDs"
+    id: weather_leds_switch
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_ON
+
+number:
+  - platform: template
+    name: "Red LED Brightness"
+    id: red_led_brightness
+    min_value: 0
+    max_value: 100
+    step: 1
+    initial_value: 100
+    restore_value: true
+    optimistic: true
+    unit_of_measurement: "%"
+
+  - platform: template
+    name: "Blue LED Brightness"
+    id: blue_led_brightness
+    min_value: 0
+    max_value: 100
+    step: 1
+    initial_value: 100
+    restore_value: true
+    optimistic: true
+    unit_of_measurement: "%"
 
 # Define the common filters for normalization
 # This anchor allows us to reuse the filter list
@@ -261,41 +291,43 @@ interval:
           if (std::isnan(high_temp)) high_temp = 0.0;
           if (std::isnan(precipitation_prob)) precipitation_prob = 0.0;
 
-          // Red LED control
-          if (high_temp >= 10) {
-            // Red off
+          if (!id(weather_leds_switch).state) {
+            // Weather LEDs disabled — ensure both are off
             id(red_led).turn_off().perform();
-            ESP_LOGD("main", "Red OFF");
-          } else if (high_temp < 10 && high_temp > 0) {
-            // Solid Red ON
-            id(red_led).turn_on().perform();
-            ESP_LOGD("main", "Red ON");
-          } else if (high_temp <= 0) {
-            // Blink Red every second
-            ESP_LOGD("main", "Red BLINK");
-            if ((millis() / 1000) % 2 == 1) {
-              id(red_led).turn_on().perform();
-            } else {
-              id(red_led).turn_off().perform();
-            }
-          }
+            id(blue_led).turn_off().perform();
+          } else {
+            float red_brightness  = id(red_led_brightness).state  / 100.0f;
+            float blue_brightness = id(blue_led_brightness).state / 100.0f;
 
-          // Blue LED Control
-          if (high_temp >= 10 && precipitation_prob < 15) {
-            // Solid Blue ON
-            id(blue_led).turn_on().perform();
-            ESP_LOGD("main", "Blue ON");
-          }
-          else if (precipitation_prob >= 15) {
-            // Blink blue LED
-            if ((millis() / 1000) % 2 == 1) {
-              id(blue_led).turn_on().perform();
+            // Red LED control
+            if (high_temp >= 10) {
+              id(red_led).turn_off().perform();
+              ESP_LOGD("main", "Red OFF");
+            } else if (high_temp < 10 && high_temp > 0) {
+              id(red_led).turn_on().set_brightness(red_brightness).perform();
+              ESP_LOGD("main", "Red ON");
+            } else if (high_temp <= 0) {
+              ESP_LOGD("main", "Red BLINK");
+              if ((millis() / 1000) % 2 == 1) {
+                id(red_led).turn_on().set_brightness(red_brightness).perform();
+              } else {
+                id(red_led).turn_off().perform();
+              }
+            }
+
+            // Blue LED Control
+            if (high_temp >= 10 && precipitation_prob < 15) {
+              id(blue_led).turn_on().set_brightness(blue_brightness).perform();
+              ESP_LOGD("main", "Blue ON");
+            } else if (precipitation_prob >= 15) {
+              if ((millis() / 1000) % 2 == 1) {
+                id(blue_led).turn_on().set_brightness(blue_brightness).perform();
+              } else {
+                id(blue_led).turn_off().perform();
+              }
+              ESP_LOGD("main", "Blue BLINK");
             } else {
               id(blue_led).turn_off().perform();
+              ESP_LOGD("main", "Blue OFF");
             }
-            ESP_LOGD("main", "Blue BLINK");
-          } else {
-            // Blue off
-            id(blue_led).turn_off().perform();
-            ESP_LOGD("main", "Blue OFF");
           }
