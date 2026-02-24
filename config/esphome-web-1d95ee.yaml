@@ -6,6 +6,7 @@ esphome:
 
 esp8266:
   board: d1_mini
+  restore_from_flash: true
 
 # Enable logging
 logger:
@@ -114,7 +115,7 @@ number:
     min_value: 0
     max_value: 100
     step: 1
-    initial_value: 100
+    initial_value: 35
     restore_value: true
     optimistic: true
     unit_of_measurement: "%"
