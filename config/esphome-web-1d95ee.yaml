@@ -281,25 +281,26 @@ interval:
           // =========================================================
           // 3. Weather LEDs
           // Rules:
-          // - If HighTemp > 10ºC and no precip -> Blue solid
-          // - If 0 < HighTemp < 10ºC -> Red solid
-          // - If HighTemp < 0ºC -> Blink red
+          // - If HighTemp > 15ºC and < 30ºC and no precip -> Blue solid
+          // - If 0 < HighTemp < 15ºC or 30ºC < HighTemp < 40ºC -> Red solid
+          // - If HighTemp < 0ºC or HighTemp > 40ºC -> Blink red
           // - If precipitation prob > 15% -> Blink Blue
           // =========================================================
 
           float high_temp = id(ha_daytime_high_temp).state;
           float precipitation_prob = id(ha_precipitation_prob).state;
-          if (std::isnan(high_temp)) high_temp = 0.0;
-          if (std::isnan(precipitation_prob)) precipitation_prob = 0.0;
+          float red_brightness  = id(red_led_brightness).state  / 100.0f;
+          float blue_brightness = id(blue_led_brightness).state / 100.0f;
 
           if (!id(weather_leds_switch).state) {
             // Weather LEDs disabled — ensure both are off
             id(red_led).turn_off().perform();
             id(blue_led).turn_off().perform();
+          } else if (std::isnan(high_temp) || std::isnan(precipitation_prob)) {
+            // No data: both LEDs ON fixed
+            id(red_led).turn_on().set_brightness(red_brightness).perform();
+            id(blue_led).turn_on().set_brightness(blue_brightness).perform();
           } else {
-            float red_brightness  = id(red_led_brightness).state  / 100.0f;
-            float blue_brightness = id(blue_led_brightness).state / 100.0f;
-
             // Red LED control
             if (high_temp >= 10) {
               id(red_led).turn_off().perform();
