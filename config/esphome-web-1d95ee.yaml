@@ -32,6 +32,16 @@ wifi:
 time:
   - platform: homeassistant
     id: ha_time
+    on_time_sync:
+      then:
+        - component.update: ha_daytime_high_temp_selected
+        - component.update: ha_precipitation_prob_selected
+    on_time:
+      - seconds: 0
+        minutes: /1
+        then:
+          - component.update: ha_daytime_high_temp_selected
+          - component.update: ha_precipitation_prob_selected
 
 # --- Globals for State Management ---
 globals:
@@ -194,28 +204,40 @@ sensor:
     id: ha_daytime_high_temp_0d
     entity_id: sensor.pirateweather_daytime_high_apparent_temperature_0d
     internal: true
+    on_value:
+      then:
+        - component.update: ha_daytime_high_temp_selected
 
   - platform: homeassistant
     id: ha_daytime_high_temp_1d
     entity_id: sensor.pirateweather_daytime_high_apparent_temperature_1d
     internal: true
+    on_value:
+      then:
+        - component.update: ha_daytime_high_temp_selected
 
   # Precipitation probability (0d = today, 1d = tomorrow)
   - platform: homeassistant
     id: ha_precipitation_prob_0d
     entity_id: sensor.pirateweather_precip_probability_0d
     internal: true
+    on_value:
+      then:
+        - component.update: ha_precipitation_prob_selected
 
   - platform: homeassistant
     id: ha_precipitation_prob_1d
     entity_id: sensor.pirateweather_precip_probability_1d
     internal: true
+    on_value:
+      then:
+        - component.update: ha_precipitation_prob_selected
 
   # Selected values: after 17:00 local time, prefer 1d
   - platform: template
     id: ha_daytime_high_temp_selected
     internal: true
-    update_interval: 60s
+    update_interval: never
     lambda: |-
       if (!id(ha_time).now().is_valid()) {
         return id(ha_daytime_high_temp_0d).state;
@@ -226,7 +248,7 @@ sensor:
   - platform: template
     id: ha_precipitation_prob_selected
     internal: true
-    update_interval: 60s
+    update_interval: never
     lambda: |-
       if (!id(ha_time).now().is_valid()) {
         return id(ha_precipitation_prob_0d).state;
@@ -324,9 +346,9 @@ interval:
           // - If precipitation prob >= precip_proba_threshold -> Blink Blue
           // =========================================================
           const float temp_extreme_low  = 0.0f;   // °C below which red blinks (cold)
-          const float temp_comfort_low      = 15.0f;   // °C comfort zone low
-          const float temp_comfort_high     = 30.0f;   // °C comfort zone high
-          const float temp_extreme_high = 40.0f;   // °C above which red blinks (hot)
+          const float temp_comfort_low      = 13.0f;   // °C comfort zone low
+          const float temp_comfort_high     = 28.0f;   // °C comfort zone high
+          const float temp_extreme_high = 35.0f;   // °C above which red blinks (hot)
           const float precip_proba_threshold   = 15.0f;   // % precip prob above which blue blinks
           float high_temp = id(ha_daytime_high_temp_selected).state;
           float precipitation_prob = id(ha_precipitation_prob_selected).state;
