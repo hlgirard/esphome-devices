@@ -281,11 +281,16 @@ interval:
           // =========================================================
           // 3. Weather LEDs
           // Rules:
-          // - If HighTemp > 15ºC and < 30ºC and no precip -> Blue solid
-          // - If 0 < HighTemp < 15ºC or 30ºC < HighTemp < 40ºC -> Red solid
-          // - If HighTemp < 0ºC or HighTemp > 40ºC -> Blink red
-          // - If precipitation prob > 15% -> Blink Blue
+          // - If HighTemp in (temp_comfort_low, temp_comfort_high) and no precip -> Blue solid
+          // - If HighTemp in [temp_extreme_low, temp_comfort_low] or [temp_comfort_high, temp_extreme_high] -> Red solid
+          // - If HighTemp < temp_extreme_low or HighTemp > temp_extreme_high -> Blink red
+          // - If precipitation prob >= precip_proba_threshold -> Blink Blue
           // =========================================================
+          const float temp_extreme_low  = 0.0f;   // °C below which red blinks (cold)
+          const float temp_comfort_low      = 15.0f;   // °C comfort zone low
+          const float temp_comfort_high     = 30.0f;   // °C comfort zone high
+          const float temp_extreme_high = 40.0f;   // °C above which red blinks (hot)
+          const float precip_proba_threshold   = 15.0f;   // % precip prob above which blue blinks
 
           float high_temp = id(ha_daytime_high_temp).state;
           float precipitation_prob = id(ha_precipitation_prob).state;
@@ -301,33 +306,33 @@ interval:
             id(red_led).turn_on().set_brightness(red_brightness).perform();
             id(blue_led).turn_on().set_brightness(blue_brightness).perform();
           } else {
-            // Red LED control
-            if (high_temp >= 10) {
-              id(red_led).turn_off().perform();
-              ESP_LOGD("main", "Red OFF");
-            } else if (high_temp < 10 && high_temp > 0) {
-              id(red_led).turn_on().set_brightness(red_brightness).perform();
-              ESP_LOGD("main", "Red ON");
-            } else if (high_temp <= 0) {
+            // Red LED: outside [temp_extreme_low, temp_extreme_high] -> blink; red solid bands else off
+            if (high_temp < temp_extreme_low || high_temp > temp_extreme_high) {
               ESP_LOGD("main", "Red BLINK");
               if ((millis() / 1000) % 2 == 1) {
                 id(red_led).turn_on().set_brightness(red_brightness).perform();
               } else {
                 id(red_led).turn_off().perform();
               }
+            } else if ((high_temp >= temp_extreme_low && high_temp <= temp_comfort_low) || (high_temp >= temp_comfort_high && high_temp <= temp_extreme_high)) {
+              id(red_led).turn_on().set_brightness(red_brightness).perform();
+              ESP_LOGD("main", "Red ON");
+            } else {
+              id(red_led).turn_off().perform();
+              ESP_LOGD("main", "Red OFF");
             }
 
-            // Blue LED Control
-            if (high_temp >= 10 && precipitation_prob < 15) {
-              id(blue_led).turn_on().set_brightness(blue_brightness).perform();
-              ESP_LOGD("main", "Blue ON");
-            } else if (precipitation_prob >= 15) {
+            // Blue LED: precip >= precip_proba_threshold -> blink; (temp_comfort_low, temp_comfort_high) and no precip -> solid
+            if (precipitation_prob >= precip_proba_threshold) {
+              ESP_LOGD("main", "Blue BLINK");
               if ((millis() / 1000) % 2 == 1) {
                 id(blue_led).turn_on().set_brightness(blue_brightness).perform();
               } else {
                 id(blue_led).turn_off().perform();
               }
-              ESP_LOGD("main", "Blue BLINK");
+            } else if (high_temp > temp_comfort_low && high_temp < temp_comfort_high) {
+              id(blue_led).turn_on().set_brightness(blue_brightness).perform();
+              ESP_LOGD("main", "Blue ON");
             } else {
               id(blue_led).turn_off().perform();
               ESP_LOGD("main", "Blue OFF");
