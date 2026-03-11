@@ -10,6 +10,7 @@ esp8266:
 
 # Enable logging
 logger:
+  level: INFO
 
 # Enable Home Assistant API
 api:
@@ -34,12 +35,32 @@ time:
     id: ha_time
     on_time_sync:
       then:
+        - lambda: |-
+            if (id(ha_time).now().is_valid()) {
+              auto t = id(ha_time).now();
+              bool next = t.hour >= 17;
+              if (next != id(use_tomorrow_forecast)) {
+                id(use_tomorrow_forecast) = next;
+                ESP_LOGI("forecast", "Forecast day switched to %s (time: %02d:%02d)",
+                         next ? "tomorrow" : "today", t.hour, t.minute);
+              }
+            }
         - component.update: ha_daytime_high_temp_selected
         - component.update: ha_precipitation_prob_selected
     on_time:
       - seconds: 0
         minutes: /1
         then:
+          - lambda: |-
+              if (id(ha_time).now().is_valid()) {
+                auto t = id(ha_time).now();
+                bool next = t.hour >= 17;
+                if (next != id(use_tomorrow_forecast)) {
+                  id(use_tomorrow_forecast) = next;
+                  ESP_LOGI("forecast", "Forecast day switched to %s (time: %02d:%02d)",
+                           next ? "tomorrow" : "today", t.hour, t.minute);
+                }
+              }
           - component.update: ha_daytime_high_temp_selected
           - component.update: ha_precipitation_prob_selected
 
@@ -53,6 +74,10 @@ globals:
     type: int
     restore_value: false
     initial_value: '0'
+  - id: use_tomorrow_forecast
+    type: bool
+    restore_value: false
+    initial_value: 'false'
 
 
 light:
@@ -239,22 +264,18 @@ sensor:
     internal: true
     update_interval: never
     lambda: |-
-      if (!id(ha_time).now().is_valid()) {
-        return id(ha_daytime_high_temp_0d).state;
-      }
-      const int hour = id(ha_time).now().hour;
-      return (hour >= 17) ? id(ha_daytime_high_temp_1d).state : id(ha_daytime_high_temp_0d).state;
+      return id(use_tomorrow_forecast)
+        ? id(ha_daytime_high_temp_1d).state
+        : id(ha_daytime_high_temp_0d).state;
 
   - platform: template
     id: ha_precipitation_prob_selected
     internal: true
     update_interval: never
     lambda: |-
-      if (!id(ha_time).now().is_valid()) {
-        return id(ha_precipitation_prob_0d).state;
-      }
-      const int hour = id(ha_time).now().hour;
-      return (hour >= 17) ? id(ha_precipitation_prob_1d).state : id(ha_precipitation_prob_0d).state;
+      return id(use_tomorrow_forecast)
+        ? id(ha_precipitation_prob_1d).state
+        : id(ha_precipitation_prob_0d).state;
 
 interval:
   - interval: 0.5s
@@ -302,7 +323,7 @@ interval:
               if (roll < probability) {
                 id(is_gust_mode) = !id(is_gust_mode);
                 id(last_transition_time) = now;
-                ESP_LOGD("main", "Transitioned to %s. (Prob: %.2f, Time: %u ms)", 
+                ESP_LOGI("main", "Transitioned to %s. (Prob: %.2f, Time: %u ms)", 
                   id(is_gust_mode) ? "GUST" : "SPEED", probability, time_since_transition);
               }
             }
