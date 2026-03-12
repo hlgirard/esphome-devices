@@ -71,6 +71,7 @@ script:
 time:
   - platform: homeassistant
     id: ha_time
+    timezone: America/New_York
     on_time_sync:
       then:
         - script.execute: update_forecast_day
@@ -113,10 +114,11 @@ light:
     internal: true
     default_transition_length: 500ms
     effects:
-      - flashing:
+      - pulse:
           name: "Blink"
-          duration_on: 1s
-          duration_off: 1s
+          transition_length: 750ms
+          update_interval: 1s
+          max_brightness: 100%
   # Blue LED for weather beacon
   - platform: monochromatic
     id: blue_led
@@ -124,10 +126,11 @@ light:
     internal: true
     default_transition_length: 500ms
     effects:
-      - flashing:
+      - pulse:
           name: "Blink"
-          duration_on: 1s
-          duration_off: 1s
+          transition_length: 750ms
+          update_interval: 1s
+          max_brightness: 35%
 
 
 output:
@@ -161,29 +164,6 @@ switch:
     id: weather_leds_switch
     optimistic: true
     restore_mode: RESTORE_DEFAULT_ON
-
-number:
-  - platform: template
-    name: "Red LED Brightness"
-    id: red_led_brightness
-    min_value: 0
-    max_value: 100
-    step: 1
-    initial_value: 100
-    restore_value: true
-    optimistic: true
-    unit_of_measurement: "%"
-
-  - platform: template
-    name: "Blue LED Brightness"
-    id: blue_led_brightness
-    min_value: 0
-    max_value: 100
-    step: 1
-    initial_value: 35
-    restore_value: true
-    optimistic: true
-    unit_of_measurement: "%"
 
 # Define the common filters for normalization
 # This anchor allows us to reuse the filter list
@@ -394,8 +374,6 @@ interval:
 
           float high_temp = id(ha_daytime_high_temp_selected).state;
           float precipitation_prob = id(ha_precipitation_prob_selected).state;
-          float red_brightness  = id(red_led_brightness).state  / 100.0f;
-          float blue_brightness = id(blue_led_brightness).state / 100.0f;
 
           int red_state = 0;
           int blue_state = 0;
@@ -430,10 +408,10 @@ interval:
               id(red_led).turn_off().perform();
               ESP_LOGD("weather", "Red OFF");
             } else if (red_state == 1) {
-              id(red_led).turn_on().set_brightness(red_brightness).set_effect("None").perform();
+              id(red_led).turn_on().set_brightness(1.0f).set_effect("None").perform();
               ESP_LOGD("weather", "Red SOLID");
             } else {
-              id(red_led).turn_on().set_brightness(red_brightness).set_effect("Blink").perform();
+              id(red_led).turn_on().set_effect("Blink").perform();
               ESP_LOGD("weather", "Red BLINK");
             }
           }
@@ -444,10 +422,10 @@ interval:
               id(blue_led).turn_off().perform();
               ESP_LOGD("weather", "Blue OFF");
             } else if (blue_state == 1) {
-              id(blue_led).turn_on().set_brightness(blue_brightness).set_effect("None").perform();
+              id(blue_led).turn_on().set_brightness(0.35f).set_effect("None").perform();
               ESP_LOGD("weather", "Blue SOLID");
             } else {
-              id(blue_led).turn_on().set_brightness(blue_brightness).set_effect("Blink").perform();
+              id(blue_led).turn_on().set_effect("Blink").perform();
               ESP_LOGD("weather", "Blue BLINK");
             }
           }
