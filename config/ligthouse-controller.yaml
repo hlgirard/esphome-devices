@@ -28,16 +28,16 @@ wifi:
 captive_portal:
 
 # --- MOSFET shield outputs (Mostly Robots 4ch MOSFET Shield v1.3) ---
-# Channel A = OUT1 = D5 (GPIO14) -> Lighthouse
-# Channel D = OUT4 = D8 (GPIO15) -> Fog Horn
+# Channel C = OUT3 = D7 -> Fog Horn
+# Channel D = OUT4 = D8 -> Lighthouse
 # Low-side N-channel switching, 10K gate pull-down = OFF when unpowered.
 output:
   - platform: gpio
     id: lighthouse_mosfet_out
-    pin: D5
+    pin: D8
   - platform: gpio
     id: fog_horn_mosfet_out
-    pin: D8
+    pin: D7
 
 switch:
   - platform: output
