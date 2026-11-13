@@ -212,7 +212,7 @@ sensor:
   # Normalized Wind Speed Sensor (Internal)
   - platform: homeassistant
     id: ha_wind_speed_norm
-    entity_id: sensor.noaa_castle_island_station_wind_speed_kn
+    entity_id: sensor.wind_indicator_speed
     internal: true
     filters:
       - *calibration_curve
@@ -221,7 +221,7 @@ sensor:
   # Normalized Wind Gust Sensor (Internal)
   - platform: homeassistant
     id: ha_wind_gust_norm
-    entity_id: sensor.noaa_castle_island_station_wind_gusts_kn
+    entity_id: sensor.wind_indicator_gusts
     internal: true
     filters:
       - *calibration_curve

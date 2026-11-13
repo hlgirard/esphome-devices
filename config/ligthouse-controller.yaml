@@ -1,0 +1,54 @@
+# Board: Wemos D1 Mini (ESP8266) (Wemos)
+# Definition: definitions/boards/d1_mini/manifest.yaml
+
+esphome:
+  name: lighthouse-controller
+  friendly_name: Lighthouse Controller
+
+esp8266:
+  board: d1_mini
+
+logger:
+
+api:
+  encryption:
+    key: !secret api_encryption_key
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: Lighthouse Fallback Hotspot
+    password: !secret fallback_password
+
+captive_portal:
+
+# --- MOSFET shield outputs (Mostly Robots 4ch MOSFET Shield v1.3) ---
+# Channel C = OUT3 = D7 -> Fog Horn
+# Channel D = OUT4 = D8 -> Lighthouse
+# Low-side N-channel switching, 10K gate pull-down = OFF when unpowered.
+output:
+  - platform: gpio
+    id: lighthouse_mosfet_out
+    pin: D8
+  - platform: gpio
+    id: fog_horn_mosfet_out
+    pin: D7
+
+switch:
+  - platform: output
+    name: "Lighthouse"
+    id: lighthouse_switch
+    output: lighthouse_mosfet_out
+    icon: "mdi:lighthouse"
+    restore_mode: RESTORE_DEFAULT_OFF
+  - platform: output
+    name: "Fog Horn"
+    id: fog_horn_switch
+    output: fog_horn_mosfet_out
+    icon: "mdi:bullhorn"
+    restore_mode: RESTORE_DEFAULT_OFF
